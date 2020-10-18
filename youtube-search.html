@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Youtube search API</title>
+</head>
+<body>
+  <section>
+    <div id="input-div">
+      <h4>Enter a keyword to retrieve Youtube videos</h4>
+      <input type="search" id="input-search">
+      <button id="btn-submit-search">Search</button>
+      <button id="btn-prevPage">Prev 25</button>
+      <button id="btn-nextPage">Next 25</button>
+    </div>
+    <div id="output-div">
+      <div id="player"></div>
+    </div>
+  </section>
+  <style>
+    *{
+      padding: 0;
+      margin: 0;
+    }
+
+    html{
+      min-width: 100%;
+      max-width: fit-content;
+      min-height: 100%;
+      max-height: fit-content;
+    }
+
+    section{
+      min-width: 100%;
+      max-width: fit-content;
+      min-height: 100vh;
+      max-height: fit-content;
+      display: flex;
+    }
+
+    #input-div, #output-div{
+      display: flex;
+      flex-direction: column;
+      margin-top: 5rem;
+      align-items: center;
+      text-align: center;
+      flex: 1;
+      min-height: 100%;
+      max-height: fit-content;
+    }
+
+    #input-div input, #input-div button{
+      margin-top: 1rem;
+    }
+  </style>
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+  //basic vars
+  const search = document.querySelector('#input-search');
+  const btnSearch = document.querySelector('#btn-submit-search');
+  const outputDiv = document.querySelector('#output-div');
+  const iframeContainer = document.querySelector('#player');
+  const inputDiv = document.querySelector('#input-div');
+
+  //pageToken arrays to itererate through to provide a pagination
+  const nextPageTokens = ["CBkQAA", "CDIQAA", "CEsQAA", "CGQQAA", "CH0QAA"];
+  const prevPageTokens = ["CBkQAQ", "CDIQAA", "CEsQAA", "CGQQAA"];
+  //iterator:
+  let j = 0;
+  //buttons to iterate pages:
+  const btnNext = document.querySelector('#btn-nextPage');
+  const btnPrev = document.querySelector('#btn-prevPage');
+
+   //function to check btn status to prevent falling out of array scoping while iterating 
+  function btnStats(){
+  if(j === 0){
+  btnPrev.disabled = true
+  } else{
+  btnPrev.disabled = false
+  }
+  if(j === nextPageTokens.length-1){
+  btnNext.disabled = true
+  } else{
+  btnNext.disabled = false
+  }
+  }
+
+btnStats()
+
+search.focus()
+
+  //url configuration
+  let baseUrl = 'https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=25&safeSearch=none';
+  const apiKey = 'ENTER YOUR API';
+  
+
+  //main function to fetch resources via search input
+    function submitSearch(){
+    let q = search.value;
+    if(q === '' || q === null){
+      alert('Search string is empty')
+    } else{
+    //still url handling  
+    let url = `${baseUrl}&key=${apiKey}`;
+    if(q.indexOf(' ')!==-1){
+    url += `&q=${q.replace(' ','%20')}`
+    }else{
+      url += `&q=${q}`
+    }
+    console.log(url)
+    fetch(url).then((response)=>{
+      if(!response.ok){
+        throw new Error('Fetching problem has occured');
+      } else{
+         return response.json();
+          }
+    }).then((json)=>{
+    //UI rendering (the func is being assembled in below)  
+    getJson(json);
+
+    //pagination in action:
+    //create a new url that has to be fetched;
+    //url is being created using prev and next page tokens (they are universal for each page, and weren't changed by Youtube since 2014);
+    //once new url is fetched, a new json is being returned and UI rendering func is being called upon it;
+
+    //nextPageToken iterators (basically we repeat fetching operations, but this time fetch()is placed inside then() as it has to be called only upon first json object has been returned)
+    btnNext.addEventListener('click',()=>{
+    if(j<nextPageTokens.length){
+    j++;
+    console.log(j)
+    btnStats()
+    }   
+    let newUrl = `${url}+&pageToken=${nextPageTokens[j]}`;
+    console.log(newUrl);
+    fetch(newUrl).then((response)=>{
+    return response.json();
+    }).then((json)=>{
+     getJson(json)
+    })
+    });
+
+    //prevPageToken iterators
+    btnPrev.addEventListener('click',()=>{
+    j--;
+    console.log(j)
+    btnStats()
+    let newUrl = `${url}+&pageToken=${prevPageTokens[j]}`;  
+    console.log(newUrl);
+    fetch(newUrl).then((response)=>{
+    return response.json();
+    }).then((json)=>{
+    getJson(json)
+    })
+    });
+}).catch((er)=>{
+  `Some issue(s) was faced: ${er}`
+  })
+  }
+  }
+    
+    //main function to render UI:
+    function getJson(json){
+        while(outputDiv.firstChild){
+        outputDiv.removeChild(outputDiv.firstChild)
+      }
+      console.log(json);
+      const jsonArray = json.items;
+      console.log(jsonArray.length)
+
+      //creating iFrame references and appent them to the DOM
+      for(let i = 0; i<jsonArray.length; i++){
+      const playerFrame = document.createElement('iframe');
+      playerFrame.id = 'iframePlayer';
+      playerFrame.src = `https://www.youtube.com/embed/${jsonArray[i].id.videoId}?enablejsapi=1`;
+      outputDiv.appendChild(playerFrame);
+
+       //inbuilt Youtube function 
+      function onYouTubeIframeAPIReady() {
+        player = new YT.Player('iframePlayer', {
+        videoId: jsonArray[i].id.videoId,
+        events: {
+          'onReady': onPlayerReady
+        }
+      });
+  
+    }
+    function onPlayerReady(event) {
+      event.target.playVideo();
+    }
+    }
+   }
+
+  btnSearch.addEventListener('click', submitSearch)
+  document.addEventListener("keydown", event => {
+  if ( event.keyCode === 13) {
+  submitSearch()
+  }
+});
+
+  </script>
+</body>
+</html>
+
+
